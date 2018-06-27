@@ -206,6 +206,240 @@ static void offtout(off_t x,u_char *buf)
 	if(x<0) buf[7]|=0x80;
 }
 
+int bsdiffBuffer(
+	const char* error, 
+	const char* oldBuffer, 
+	int oldBufferSize, 
+	const char* newBuffer, 
+	int newBufferSize,
+	const char* patchfile) {
+	off_t *I,*V;
+	off_t scan,pos,len;
+	off_t lastscan,lastpos,lastoffset;
+	off_t oldscore,scsc;
+	off_t s,Sf,lenf,Sb,lenb;
+	off_t overlap,Ss,lens;
+	off_t i;
+	off_t dblen,eblen;
+	u_char *db,*eb;
+	u_char buf[8];
+	u_char header[32];
+	FILE * pf;
+	BZFILE * pfbz2;
+	int bz2err;
+
+	if(((I=malloc((oldBufferSize+1)*sizeof(off_t)))==NULL) ||
+		((V=malloc((oldBufferSize+1)*sizeof(off_t)))==NULL)) {
+		sprintf((char*)error, "%s", strerror(errno));
+		return -1;
+	};
+	
+	qsufsort(I,V,(u_char*)oldBuffer,oldBufferSize);
+
+	free(V);
+	
+	if(((db=malloc(newBufferSize+1))==NULL) ||
+		((eb=malloc(newBufferSize+1))==NULL)) err(1,NULL);
+	dblen=0;
+	eblen=0;
+		
+	/* Create the patch file */
+	if ((pf = fopen(patchfile, FOPEN_FLAGS)) == NULL) {
+		sprintf((char*)error, "\"%s\" %s", patchfile, strerror(errno));
+		return -1;
+	}	
+	
+	/* Header is
+		0	8	 "BSDIFF40"
+		8	8	length of bzip2ed ctrl block
+		16	8	length of bzip2ed diff block
+		24	8	length of new file */
+	/* File is
+		0	32	Header
+		32	??	Bzip2ed ctrl block
+		??	??	Bzip2ed diff block
+		??	??	Bzip2ed extra block */
+	memcpy(header,"BSDIFF40",8);
+	offtout(0, header + 8);
+	offtout(0, header + 16);
+	offtout(newBufferSize, header + 24);
+	if (fwrite(header, 32, 1, pf) != 1) {
+		sprintf((char*)error, "\"%s\" %s", patchfile, strerror(errno));
+		return -1;
+	}		
+
+	/* Compute the differences, writing ctrl as we go */
+	if ((pfbz2 = BZ2_bzWriteOpen(&bz2err, pf, 9, 0, 0)) == NULL) {
+		sprintf((char*)error, "BZ2_bzWriteOpen, bz2err = %d", bz2err);
+		return -1;
+	}	
+	
+	scan=0;len=0;
+	lastscan=0;lastpos=0;lastoffset=0;
+	while(scan<newBufferSize) {
+		oldscore=0;
+
+		for(scsc=scan+=len;scan<newBufferSize;scan++) {
+			len=search(I,(u_char*)oldBuffer,oldBufferSize,(u_char*)newBuffer+scan,newBufferSize-scan,
+					0,oldBufferSize,&pos);
+
+			for(;scsc<scan+len;scsc++)
+			if((scsc+lastoffset<oldBufferSize) &&
+				(oldBuffer[scsc+lastoffset] == newBuffer[scsc]))
+				oldscore++;
+
+			if(((len==oldscore) && (len!=0)) || 
+				(len>oldscore+8)) break;
+
+			if((scan+lastoffset<oldBufferSize) &&
+				(oldBuffer[scan+lastoffset] == newBuffer[scan]))
+				oldscore--;
+		};
+
+		if((len!=oldscore) || (scan==newBufferSize)) {
+			s=0;Sf=0;lenf=0;
+			for(i=0;(lastscan+i<scan)&&(lastpos+i<oldBufferSize);) {
+				if(oldBuffer[lastpos+i]==newBuffer[lastscan+i]) s++;
+				i++;
+				if(s*2-i>Sf*2-lenf) { Sf=s; lenf=i; };
+			};
+
+			lenb=0;
+			if(scan<newBufferSize) {
+				s=0;Sb=0;
+				for(i=1;(scan>=lastscan+i)&&(pos>=i);i++) {
+					if(oldBuffer[pos-i]==newBuffer[scan-i]) s++;
+					if(s*2-i>Sb*2-lenb) { Sb=s; lenb=i; };
+				};
+			};
+
+			if(lastscan+lenf>scan-lenb) {
+				overlap=(lastscan+lenf)-(scan-lenb);
+				s=0;Ss=0;lens=0;
+				for(i=0;i<overlap;i++) {
+					if(newBuffer[lastscan+lenf-overlap+i]==
+					   oldBuffer[lastpos+lenf-overlap+i]) s++;
+					if(newBuffer[scan-lenb+i]==
+					   oldBuffer[pos-lenb+i]) s--;
+					if(s>Ss) { Ss=s; lens=i+1; };
+				};
+
+				lenf+=lens-overlap;
+				lenb-=lens;
+			};
+
+			for(i=0;i<lenf;i++)
+				db[dblen+i]=newBuffer[lastscan+i]-oldBuffer[lastpos+i];
+			for(i=0;i<(scan-lenb)-(lastscan+lenf);i++)
+				eb[eblen+i]=newBuffer[lastscan+lenf+i];
+
+			dblen+=lenf;
+			eblen+=(scan-lenb)-(lastscan+lenf);
+
+			offtout(lenf,buf);
+			BZ2_bzWrite(&bz2err, pfbz2, buf, 8);
+			if (bz2err != BZ_OK) {
+				sprintf((char*)error, "BZ2_bzWrite, bz2err = %d", bz2err);
+				return -1;
+			}			
+
+			offtout((scan-lenb)-(lastscan+lenf),buf);
+			BZ2_bzWrite(&bz2err, pfbz2, buf, 8);
+			if (bz2err != BZ_OK) {
+				sprintf((char*)error, "BZ2_bzWrite, bz2err = %d", bz2err);
+				return -1;
+			}
+
+			offtout((pos-lenb)-(lastpos+lenf),buf);
+			BZ2_bzWrite(&bz2err, pfbz2, buf, 8);
+			if (bz2err != BZ_OK) {
+				sprintf((char*)error, "BZ2_bzWrite, bz2err = %d", bz2err);
+				return -1;
+			}				
+
+			lastscan=scan-lenb;
+			lastpos=pos-lenb;
+			lastoffset=pos-scan;
+		};
+	};
+	BZ2_bzWriteClose(&bz2err, pfbz2, 0, NULL, NULL);
+	if (bz2err != BZ_OK) {
+		sprintf((char*)error, "BZ2_bzWriteClose, bz2err = %d", bz2err);
+		return -1;
+	}	
+
+	/* Compute size of compressed ctrl data */
+	if ((len = ftell(pf)) == -1) {
+		sprintf((char*)error, "\"ftell\" %s", strerror(errno));
+		return -1;
+	}		
+	offtout(len-32, header + 8);
+
+	/* Write compressed diff data */
+	if ((pfbz2 = BZ2_bzWriteOpen(&bz2err, pf, 9, 0, 0)) == NULL) {
+		sprintf((char*)error, "BZ2_bzWriteOpen, bz2err = %d", bz2err);
+		return -1;
+	}
+	
+	BZ2_bzWrite(&bz2err, pfbz2, db, dblen);
+	if (bz2err != BZ_OK) {
+		sprintf((char*)error, "BZ2_bzWrite, bz2err = %d", bz2err);
+		return -1;
+	}
+	
+	BZ2_bzWriteClose(&bz2err, pfbz2, 0, NULL, NULL);
+	if (bz2err != BZ_OK) {
+		sprintf((char*)error, "BZ2_bzWriteClose, bz2err = %d", bz2err);
+		return -1;
+	}	
+
+	/* Compute size of compressed diff data */
+	if ((newBufferSize = ftell(pf)) == -1) {
+		sprintf((char*)error, "\"ftell\" %s", strerror(errno));
+		return -1;
+	}	
+	offtout(newBufferSize - len, header + 16);
+
+	/* Write compressed extra data */
+	if ((pfbz2 = BZ2_bzWriteOpen(&bz2err, pf, 9, 0, 0)) == NULL) {
+		sprintf((char*)error, "BZ2_bzWriteOpen, bz2err = %d", bz2err);
+		return -1;
+	}
+	
+	BZ2_bzWrite(&bz2err, pfbz2, eb, eblen);
+	if (bz2err != BZ_OK) {
+		sprintf((char*)error, "BZ2_bzWrite, bz2err = %d", bz2err);
+		return -1;
+	}
+	
+	BZ2_bzWriteClose(&bz2err, pfbz2, 0, NULL, NULL);
+	if (bz2err != BZ_OK) {
+		sprintf((char*)error, "BZ2_bzWriteClose, bz2err = %d", bz2err);
+		return -1;
+	}		
+
+	/* Seek to the beginning, write the header, and close the file */
+	if (fseek(pf, 0, SEEK_SET)) {
+		sprintf((char*)error, "\"fseek\" %s", strerror(errno));
+		return -1;
+	}	
+	if (fwrite(header, 32, 1, pf) != 1) {
+		sprintf((char*)error, "\"%s\" %s", patchfile, strerror(errno));
+		return -1;
+	}	
+	if (fclose(pf)) {
+		sprintf((char*)error, "\"fclose\" %s", strerror(errno));
+		return -1;
+	}
+	
+	/* Free the memory we used */
+	free(db);
+	free(eb);
+	free(I);
+
+	return 0;
+}
+
 int bsdiff(const char* error, const char* oldfile, const char* newfile, const char* patchfile) {
 	int fd;
 	u_char *old,*new;
