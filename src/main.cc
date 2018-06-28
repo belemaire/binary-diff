@@ -28,7 +28,7 @@ namespace bsdpNode {
     if(ret != 0) {
       isolate->ThrowException(Exception::Error(
                         String::NewFromUtf8(isolate, error)));
-    }      
+    }    
   }
 
   void diff(const v8::FunctionCallbackInfo<Value>& args) {
