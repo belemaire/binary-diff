@@ -12,11 +12,10 @@ describe('bsdiff', () => {
     it('should produce identical output as diff', () => {
       const oldFile = path.join(__dirname, 'resources/react-0.3-stable.zip');
       const newFile = path.join(__dirname, 'resources/react-0.4-stable.zip');
-      const patchFile = path.join(__dirname, 'resources/react.patch');
-      bsdiff.diff(oldFile, newFile, patchFile);
-
+     
       const oldBuffer = fs.readFileSync(oldFile); 
       const newBuffer = fs.readFileSync(newFile);
+      const patchFile = path.join(__dirname, 'resources/react.patch');
       const patchBufferFile = path.join(__dirname, 'resources/react.buffer.patch');
       bsdiff.diffBuffer(oldBuffer, oldBuffer.length, newBuffer, newBuffer.length, patchBufferFile);
 

@@ -29,7 +29,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int bsdiff(const char* error, const char* oldfile, const char* newfile, const char* patchfile);
 int bsdiffBuffer(const char* error, const char* oldBuffer, int oldBufferSize, const char* newBuffer, int newBufferSize,  const char* patchfile);
 
 #endif 
