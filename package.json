@@ -1,9 +1,6 @@
 {
   "name": "bsdiff-diff",
   "description": "bsdiff algorithm diff implementation for NodeJS",
-  "bin": {
-    "bsdiff-diff ": "./bin/bsdiff-diff"
-  },
   "version": "1.0.0",
   "main": "index.js",
   "devDependencies": {
