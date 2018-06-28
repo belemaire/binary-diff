@@ -1,2 +1,2 @@
 const bsdiff = require('./build/Release/bsdiff.node');
-module.exports = bsdiff.diff;
+module.exports = (bufA, bufB) => bsdiff.diff(bufA, bufA.length, bufB, bufB.length)
