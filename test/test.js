@@ -17,7 +17,7 @@ describe('bsdiff', () => {
       const newBuffer = fs.readFileSync(newFile);
       const patchFile = path.join(__dirname, 'resources/react.patch');
       const patchBufferFile = path.join(__dirname, 'resources/react.test.patch');
-      const result = bsdiff.diff(oldBuffer, oldBuffer.length, newBuffer, newBuffer.length);
+      const result = bsdiff(oldBuffer, oldBuffer.length, newBuffer, newBuffer.length);
       fs.writeFileSync(patchBufferFile, result);
       expect(file(patchFile)).to.equal(file(patchBufferFile));
     })
