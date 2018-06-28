@@ -206,13 +206,13 @@ static void offtout(off_t x,u_char *buf)
 	if(x<0) buf[7]|=0x80;
 }
 
-int bsdiffBuffer(
+int bsdiff(
 	const char* error, 
 	const char* oldBuffer, 
 	int oldBufferSize, 
 	const char* newBuffer, 
 	int newBufferSize,
-	const char* patchfile) {
+	SizedCharArray* result) {
 	off_t *I,*V;
 	off_t scan,pos,len;
 	off_t lastscan,lastpos,lastoffset;
@@ -228,6 +228,12 @@ int bsdiffBuffer(
 	BZFILE * pfbz2;
 	int bz2err;
 
+	pf = open_memstream(&(result->value), &(result->size));
+	if (NULL==pf) {
+		sprintf((char*)error, "%s", strerror(errno));
+		return -1;
+  }
+
 	if(((I=malloc((oldBufferSize+1)*sizeof(off_t)))==NULL) ||
 		((V=malloc((oldBufferSize+1)*sizeof(off_t)))==NULL)) {
 		sprintf((char*)error, "%s", strerror(errno));
@@ -242,12 +248,6 @@ int bsdiffBuffer(
 		((eb=malloc(newBufferSize+1))==NULL)) err(1,NULL);
 	dblen=0;
 	eblen=0;
-		
-	/* Create the patch file */
-	if ((pf = fopen(patchfile, FOPEN_FLAGS)) == NULL) {
-		sprintf((char*)error, "\"%s\" %s", patchfile, strerror(errno));
-		return -1;
-	}	
 	
 	/* Header is
 		0	8	 "BSDIFF40"
@@ -264,9 +264,9 @@ int bsdiffBuffer(
 	offtout(0, header + 16);
 	offtout(newBufferSize, header + 24);
 	if (fwrite(header, 32, 1, pf) != 1) {
-		sprintf((char*)error, "\"%s\" %s", patchfile, strerror(errno));
+		sprintf((char*)error, "%s", strerror(errno));
 		return -1;
-	}		
+	}
 
 	/* Compute the differences, writing ctrl as we go */
 	if ((pfbz2 = BZ2_bzWriteOpen(&bz2err, pf, 9, 0, 0)) == NULL) {
@@ -418,15 +418,24 @@ int bsdiffBuffer(
 		return -1;
 	}		
 
-	/* Seek to the beginning, write the header, and close the file */
+	/* 
+		Seek to the beginning, write the header, and close the file.
+		Because we are using an in memory file, we need to move the file cursor
+		back to the end of the file after writing the header.
+	*/
+	long eob = ftell(pf);
 	if (fseek(pf, 0, SEEK_SET)) {
 		sprintf((char*)error, "\"fseek\" %s", strerror(errno));
 		return -1;
 	}	
 	if (fwrite(header, 32, 1, pf) != 1) {
-		sprintf((char*)error, "\"%s\" %s", patchfile, strerror(errno));
+		sprintf((char*)error, "%s", strerror(errno));
 		return -1;
 	}	
+	if (fseek(pf, eob, SEEK_SET)) {
+		sprintf((char*)error, "\"fseek\" %s", strerror(errno));
+		return -1;
+	}
 	if (fclose(pf)) {
 		sprintf((char*)error, "\"fclose\" %s", strerror(errno));
 		return -1;

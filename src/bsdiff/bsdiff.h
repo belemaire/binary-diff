@@ -29,6 +29,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-int bsdiffBuffer(const char* error, const char* oldBuffer, int oldBufferSize, const char* newBuffer, int newBufferSize,  const char* patchfile);
+typedef struct {
+  char* value;
+  size_t size;
+} SizedCharArray;
+
+int bsdiff(const char* error, const char* oldBuffer, int oldBufferSize, const char* newBuffer, int newBufferSize, SizedCharArray* result);
 
 #endif 
