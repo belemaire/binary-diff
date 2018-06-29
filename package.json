@@ -5,7 +5,7 @@
   "main": "index.js",
   "devDependencies": {
     "mocha": "^5.2.0",
-    "nan": "^2.10.0",
+    
     "chai": "^4.1.2",
     "chai-files": "^1.4.0"
   },
@@ -21,7 +21,7 @@
   "license": "MIT",
   "gypfile": true,
   "dependencies": {
-    "commander": "^2.15.1"
+    "nan": "^2.10.0"
   },
   "bugs": {
     "url": "https://github.com/belemaire/bs-diff/issues"
