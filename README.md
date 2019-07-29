@@ -1,15 +1,15 @@
-# bs-diff
+# binary-diff
 
 ## Install
 
 ```
-$ npm install bs-diff
+$ npm install binary-diff
 ```
 
 ## Usage
 
 ```js
-const bsdiff = require('bs-diff')
+const bsdiff = require('binary-diff')
 
 const bufA = Buffer.from('abcd')
 const bufB = Buffer.from('abef')

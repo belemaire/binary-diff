@@ -1,5 +1,5 @@
 {
-  "name": "bs-diff",
+  "name": "binary-diff",
   "description": "bsdiff algorithm diff implementation for NodeJS",
   "version": "1.0.0",
   "main": "index.js",
@@ -24,7 +24,7 @@
     "nan": "^2.10.0"
   },
   "bugs": {
-    "url": "https://github.com/belemaire/bs-diff/issues"
+    "url": "https://github.com/belemaire/binary-diff/issues"
   },
-  "homepage": "https://github.com/belemaire/bs-diff#readme"
+  "homepage": "https://github.com/belemaire/binary-diff#readme"
 }
